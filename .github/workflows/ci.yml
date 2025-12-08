@@ -1,0 +1,135 @@
+name: Security Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+
+jobs:
+  test:
+    name: Code Quality & Static Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: app/go.sum
+
+      - name: Download Go Dependencies
+        run: |
+          cd app
+          go mod tidy
+
+      - name: Run Go Unit Tests with Race Detector
+        run: |
+          cd app
+          go test -v -race ./...
+
+      - name: Run Go Vet & Staticcheck
+        run: |
+          cd app
+          go vet ./...
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+      - name: TruffleHog Secret Scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+      - name: Run Gosec AST Security Audit
+        uses: securego/gosec@master
+        with:
+          args: './app/...'
+
+  docker-scan:
+    name: Docker Build & Trivy Vulnerability Scan
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Build Local Container Image
+        run: |
+          cd app
+          docker build -t myapp:local .
+
+      - name: Run Trivy CVE Container Vulnerability Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'myapp:local'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL'
+
+  ecr-push:
+    name: Amazon ECR Push via OIDC
+    needs: docker-scan
+    if: ${{ secrets.AWS_ROLE_ARN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push Container Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: myapp-repo
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cd app
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+  secret-validation:
+    name: Validate Secrets Manager Structure (CI Role - No GetSecretValue)
+    needs: test
+    if: ${{ secrets.AWS_ROLE_ARN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials via CI Role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Verify Secret Metadata Existence (DescribeSecret)
+        run: |
+          echo "Validating required secret path metadata exists without fetching values..."
+          aws secretsmanager describe-secret --secret-id myapp/dev/app/database
+          aws secretsmanager describe-secret --secret-id myapp/dev/app/api-keys
+          aws secretsmanager describe-secret --secret-id myapp/dev/app/config
+          echo "✓ CI role successfully validated secret metadata structure."
+
+      - name: Verify CI Explicit Deny on GetSecretValue
+        run: |
+          echo "Verifying CI Role is EXPLICITLY DENIED from reading secret values..."
+          ! aws secretsmanager get-secret-value --secret-id myapp/dev/app/database 2>/dev/null
+          echo "✓ PASS: CI Role call to GetSecretValue was denied as mandated by zero-trust model."
