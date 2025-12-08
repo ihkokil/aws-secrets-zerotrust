@@ -42,7 +42,6 @@ jobs:
   plan:
     name: Terraform Plan via OIDC
     needs: validate
-    if: ${{ secrets.AWS_ROLE_ARN != '' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -57,17 +56,20 @@ jobs:
           terraform_version: 1.5.7
 
       - name: Configure AWS Credentials via OIDC
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
       - name: Terraform Init (${{ matrix.environment }})
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
         run: |
           cd terraform/environments/${{ matrix.environment }}
           terraform init
 
       - name: Terraform Plan (${{ matrix.environment }})
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
         run: |
           cd terraform/environments/${{ matrix.environment }}
           terraform plan -no-color
