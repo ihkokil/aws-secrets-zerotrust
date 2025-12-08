@@ -2,7 +2,7 @@
 # Stage 1: Build binary
 FROM golang:1.22-alpine AS builder
 
-RUN apk add --no-ca-certificates ca-certificates git
+RUN apk add --no-cache ca-certificates git
 
 WORKDIR /src
 
