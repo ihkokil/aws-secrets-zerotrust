@@ -170,6 +170,13 @@ kubectl apply -f k8s/service.yaml
 
 ---
 
-## License
+## 👤 Author & Contact
 
-MIT License. See LICENSE for details.
+**Md. Iqbal Haider Khan**
+- Email: [ihkokil@gmail.com](mailto:ihkokil@gmail.com)
+- LinkedIn: [https://www.linkedin.com/in/ihkokil/](https://www.linkedin.com/in/ihkokil/)
+- GitHub: [https://www.github.com/ihkokil/](https://www.github.com/ihkokil/)
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
