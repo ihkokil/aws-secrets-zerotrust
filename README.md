@@ -1,5 +1,6 @@
 # AWS Secrets Management & Zero-Trust Access Demonstration
 
+[![Zero Trust Security](https://img.shields.io/badge/Zero--Trust-Architecture-green?style=flat&logo=shield)](file:///c:/GitHub/aws-secrets-zerotrust/docs/zero-trust-model.md)
 [![Security Pipeline](https://github.com/YOUR_ORGANIZATION/aws-secrets-zerotrust/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORGANIZATION/aws-secrets-zerotrust/actions/workflows/ci.yml)
 [![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.5.0-623CE4?logo=terraform)](https://www.terraform.io/)
 [![Go Version](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go)](https://go.dev/)
