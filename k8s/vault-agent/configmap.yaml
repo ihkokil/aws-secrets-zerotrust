@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-config
+  namespace: secrets-demo
+data:
+  vault-agent-config.hcl: |
+    exit_after_auth = false
+    pid_file = "/tmp/agent.pid"
+
+    auto_auth {
+      method "aws" {
+        mount_path = "auth/aws"
+        config = {
+          type = "iam"
+          role = "app-dev"
+        }
+      }
+
+      sink "file" {
+        config = {
+          path = "/tmp/.vault-token"
+        }
+      }
+    }
+
+    template {
+      destination = "/vault/secrets/database.json"
+      contents = <<EOF
+      {{- with secret "secret/data/dev/app/database" -}}
+      {
+        "username": "{{ .Data.data.username }}",
+        "password": "{{ .Data.data.password }}",
+        "host": "{{ .Data.data.host }}",
+        "port": "{{ .Data.data.port }}"
+      }
+      {{- end -}}
+      EOF
+    }
